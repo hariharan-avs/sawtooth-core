@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ------------------------------------------------------------------------------
-
+"""
+Module: route_handlers.py
+Usage: The module is used to handler query requests and create
+       appropriate JSON response using submodules.
+"""
 import asyncio
 import re
 import logging
@@ -52,15 +56,25 @@ LOGGER = logging.getLogger(__name__)
 
 
 class CounterWrapper():
+    # pylint: disable=too-few-public-methods
+    # inc method provided to operate on counter object
+    """ CounterWrapper Init class used in posting batches count
+    or batches error.
+    """
     def __init__(self, counter=None):
         self._counter = counter
 
     def inc(self):
+        """Method to increment counter
+	"""
         if self._counter:
             self._counter.inc()
 
 
 class NoopTimerContext():
+    """ Empty function to provide optional callbacks, in the case that
+    no callback is given.
+    """
     def __enter__(self):
         pass
 
@@ -68,15 +82,22 @@ class NoopTimerContext():
         pass
 
     def stop(self):
+        """ Empty method to achieve NOP. """
         pass
 
 
 class TimerWrapper():
+    # pylint: disable=too-few-public-methods
+    # time method provided to operate on timer object
+    """ TimeWrapper Init class used in posting batches count
+    or batches error.
+    """
     def __init__(self, timer=None):
         self._timer = timer
         self._noop = NoopTimerContext()
 
     def time(self):
+        """Method to log time. """
         if self._timer:
             return self._timer.time()
         return self._noop
@@ -177,7 +198,6 @@ class RouteHandler:
         link = self._build_url(request, path='/batch_statuses', id=id_string)
 
         retval = self._wrap_response(
-            request,
             metadata={'link': link},
             status=status)
 
@@ -244,7 +264,7 @@ class RouteHandler:
         data = self._drop_id_prefixes(
             self._drop_empty_props(response['batch_statuses']))
 
-        return self._wrap_response(request, data=data, metadata=metadata)
+        return self._wrap_response(data=data, metadata=metadata)
 
     async def list_state(self, request):
         """Fetches list of data entries, optionally filtered by address prefix.
@@ -261,6 +281,8 @@ class RouteHandler:
             link: The link to this exact query, including head block
             paging: Paging info and nav, like total resources and a next link
         """
+        error_traps = [error_handlers.InvalidAddressListTrap]
+
         paging_controls = self._get_paging_controls(request)
 
         head, root = await self._head_to_root(request.url.query.get(
@@ -274,7 +296,8 @@ class RouteHandler:
         response = await self._query_validator(
             Message.CLIENT_STATE_LIST_REQUEST,
             client_state_pb2.ClientStateListResponse,
-            validator_query)
+            validator_query,
+            error_traps)
 
         return self._wrap_paginated_response(
             request=request,
@@ -312,7 +335,6 @@ class RouteHandler:
             error_traps)
 
         return self._wrap_response(
-            request,
             data=response['value'],
             metadata=self._get_metadata(request, response, head=head))
 
@@ -370,7 +392,6 @@ class RouteHandler:
             error_traps)
 
         return self._wrap_response(
-            request,
             data=self._expand_block(response['block']),
             metadata=self._get_metadata(request, response))
 
@@ -429,7 +450,6 @@ class RouteHandler:
             error_traps)
 
         return self._wrap_response(
-            request,
             data=self._expand_batch(response['batch']),
             metadata=self._get_metadata(request, response))
 
@@ -491,7 +511,6 @@ class RouteHandler:
             error_traps)
 
         return self._wrap_response(
-            request,
             data=self._expand_transaction(response['transaction']),
             metadata=self._get_metadata(request, response))
 
@@ -557,7 +576,7 @@ class RouteHandler:
         data = self._drop_id_prefixes(
             self._drop_empty_props(response['receipts']))
 
-        return self._wrap_response(request, data=data, metadata=metadata)
+        return self._wrap_response(data=data, metadata=metadata)
 
     async def fetch_peers(self, request):
         """Fetches the peers from the validator.
@@ -574,7 +593,6 @@ class RouteHandler:
             client_peers_pb2.ClientPeersGetRequest())
 
         return self._wrap_response(
-            request,
             data=response['peers'],
             metadata=self._get_metadata(request, response))
 
@@ -587,7 +605,6 @@ class RouteHandler:
             client_status_pb2.ClientStatusGetRequest())
 
         return self._wrap_response(
-            request,
             data={
                 'peers': response['peers'],
                 'endpoint': response['endpoint']
@@ -670,6 +687,8 @@ class RouteHandler:
 
     @staticmethod
     def _check_status_errors(proto, content, error_traps=None):
+        # pylint: disable=too-many-branches
+        # seperate branches to validate status and error
         """Raises HTTPErrors based on error statuses sent from validator.
         Checks for common statuses and runs route specific error traps.
         """
@@ -713,7 +732,7 @@ class RouteHandler:
                 trap.check(content.status)
 
     @staticmethod
-    def _wrap_response(request, data=None, metadata=None, status=200):
+    def _wrap_response(data=None, metadata=None, status=200):
         """Creates the JSON response envelope to be sent back to the client.
         """
         envelope = metadata or {}
@@ -733,6 +752,8 @@ class RouteHandler:
     @classmethod
     def _wrap_paginated_response(cls, request, response, controls, data,
                                  head=None):
+        # pylint: disable=too-many-arguments
+        # functionally unique arguments
         """Builds the metadata for a pagingated response and wraps everying in
         a JSON encoded web.Response
         """
@@ -753,7 +774,6 @@ class RouteHandler:
         # If there are no resources, there should be nothing else in paging
         if paging_response.get("next") == "":
             return cls._wrap_response(
-                request,
                 data=data,
                 metadata={
                     'head': head,
@@ -771,7 +791,6 @@ class RouteHandler:
         paging['next'] = build_pg_url(paging_response['next'])
 
         return cls._wrap_response(
-            request,
             data=data,
             metadata={
                 'head': head,
